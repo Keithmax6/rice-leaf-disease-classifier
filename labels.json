@@ -1,0 +1,21 @@
+{
+  "class_names": [
+    "Bacterialblight",
+    "Blast",
+    "Brownspot",
+    "Healthy",
+    "Tungro"
+  ],
+  "img_size": 128,
+  "arch": "mobilenet_v3_small",
+  "best_val_acc": 0.9346361185983828,
+  "train_seconds": 146.7,
+  "n_train": 5937,
+  "n_val": 1484,
+  "history": [
+    {"epoch": 1, "train_acc": 0.821, "val_acc": 0.8551},
+    {"epoch": 2, "train_acc": 0.9121, "val_acc": 0.9137},
+    {"epoch": 3, "train_acc": 0.9264, "val_acc": 0.9346},
+    {"epoch": 4, "train_acc": 0.9387, "val_acc": 0.9313}
+  ]
+}
