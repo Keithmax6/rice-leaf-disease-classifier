@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rice Leaf Check</title>
+  <style>
+    :root {
+      --bg: #f3f6f1;
+      --card: #ffffff;
+      --ink: #1c2b1a;
+      --muted: #5b6b58;
+      --ok: #1b7a3d;
+      --ok-bg: #e7f6ec;
+      --bad: #b42318;
+      --bad-bg: #fdecea;
+      --line: #d7e0d3;
+      --accent: #2f6b3c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(900px 400px at 10% -10%, #e4f0d8 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 32px 18px 48px;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 6px; }
+    p.lead { color: var(--muted); margin: 0 0 22px; line-height: 1.45; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(28, 43, 26, 0.06);
+    }
+    .drop {
+      border: 2px dashed #b7c9b0;
+      border-radius: 14px;
+      padding: 22px 16px;
+      text-align: center;
+      background: #f8fbf6;
+      cursor: pointer;
+    }
+    .drop.drag { background: #eef7e8; border-color: var(--accent); }
+    .drop strong { display: block; margin-bottom: 4px; }
+    .drop span { color: var(--muted); font-size: 0.92rem; }
+    input[type=file] { display: none; }
+    img.preview {
+      display: none;
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin: 14px 0 0;
+    }
+    button {
+      width: 100%;
+      margin-top: 16px;
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 16px;
+      font-size: 1rem;
+      font-weight: 650;
+      color: white;
+      background: var(--accent);
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .result { display: none; margin-top: 16px; border-radius: 14px; padding: 16px; }
+    .result.ok { background: var(--ok-bg); color: var(--ok); }
+    .result.bad { background: var(--bad-bg); color: var(--bad); }
+    .result h2 { margin: 0 0 6px; font-size: 1.35rem; }
+    .result p { margin: 0; color: var(--ink); }
+    .bars { margin-top: 12px; }
+    .bar-row { margin: 7px 0; font-size: 0.85rem; color: var(--ink); }
+    .bar-track { height: 8px; background: #e6ebe3; border-radius: 99px; overflow: hidden; margin-top: 3px; }
+    .bar-fill { height: 100%; background: var(--accent); width: 0; }
+    .note { margin-top: 18px; font-size: 0.8rem; color: var(--muted); }
+    .err { color: var(--bad); margin-top: 12px; display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Rice leaf check</h1>
+    <p class="lead">Upload a close-up photo of one rice leaf. The model will say if it looks okay or diseased.</p>
+    <div class="card">
+      <label class="drop" id="drop">
+        <strong>Tap to choose a photo</strong>
+        <span>or drop an image here · JPG / PNG</span>
+        <input id="file" type="file" accept="image/*" />
+      </label>
+      <img id="preview" class="preview" alt="Selected leaf" />
+      <button id="go" disabled>Check leaf</button>
+      <div id="err" class="err"></div>
+      <div id="result" class="result"></div>
+    </div>
+    <p class="note">Works on rice leaves only. A whole-field photo or another crop will be unreliable. This is a first check, not a lab diagnosis.</p>
+  </main>
+  <script>
+    const fileInput = document.getElementById("file");
+    const drop = document.getElementById("drop");
+    const preview = document.getElementById("preview");
+    const go = document.getElementById("go");
+    const result = document.getElementById("result");
+    const err = document.getElementById("err");
+    let chosen = null;
+    function showFile(f) {
+      if (!f || !f.type.startsWith("image/")) return;
+      chosen = f;
+      preview.src = URL.createObjectURL(f);
+      preview.style.display = "block";
+      go.disabled = false;
+      result.style.display = "none";
+      err.style.display = "none";
+    }
+    drop.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => showFile(fileInput.files[0]));
+    ["dragenter", "dragover"].forEach((ev) => {
+      drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); });
+    });
+    ["dragleave", "drop"].forEach((ev) => {
+      drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); });
+    });
+    drop.addEventListener("drop", (e) => showFile(e.dataTransfer.files[0]));
+    go.addEventListener("click", async () => {
+      if (!chosen) return;
+      go.disabled = true;
+      go.textContent = "Checking…";
+      err.style.display = "none";
+      const body = new FormData();
+      body.append("image", chosen);
+      try {
+        const res = await fetch("/predict", { method: "POST", body });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        const ok = data.ok;
+        result.className = "result " + (ok ? "ok" : "bad");
+        const bars = (data.scores || []).map((s) =>
+          `<div class="bar-row">${s.label} · ${Math.round(s.prob * 100)}%
+             <div class="bar-track"><div class="bar-fill" style="width:${Math.round(s.prob * 100)}%"></div></div>
+           </div>`
+        ).join("");
+        result.innerHTML = `
+          <h2>${ok ? "Okay" : "Not okay"}</h2>
+          <p>${ok
+            ? "This leaf looks healthy."
+            : "This leaf looks diseased: <strong>" + data.display_name + "</strong>."}</p>
+          <p style="margin-top:8px">Confidence ${Math.round(data.confidence * 100)}%</p>
+          <div class="bars">${bars}</div>
+        `;
+        result.style.display = "block";
+      } catch (e) {
+        err.textContent = e.message || "Could not check this photo.";
+        err.style.display = "block";
+      } finally {
+        go.disabled = false;
+        go.textContent = "Check leaf";
+      }
+    });
+  </script>
+</body>
+</html>
